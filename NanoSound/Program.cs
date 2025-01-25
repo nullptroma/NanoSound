@@ -1,4 +1,5 @@
 ﻿using OpenTK.Audio.OpenAL;
+using OpenTK.Mathematics;
 
 var devices = ALC.GetStringList(GetEnumerationStringList.DeviceSpecifier).ToList();
 Console.WriteLine($"Devices: {string.Join(", ", devices)}");
@@ -24,14 +25,6 @@ var alcExts = ALC.GetString(device, AlcGetString.Extensions);
 var attrs = ALC.GetContextAttributes(device);
 Console.WriteLine($"Attributes: {attrs}");
 
-var exts = AL.Get(ALGetString.Extensions);
-var rend = AL.Get(ALGetString.Renderer);
-var vend = AL.Get(ALGetString.Vendor);
-var vers = AL.Get(ALGetString.Version);
-
-Console.WriteLine(
-    $"Vendor: {vend}, \nVersion: {vers}, \nRenderer: {rend}, \nExtensions: {exts}, \nALC Version: {alcMajorVersion}.{alcMinorVersion}, \nALC Extensions: {alcExts}");
-
 Console.WriteLine("Available devices: ");
 var list = ALC.EnumerateAll.GetStringList(GetEnumerateAllContextStringList.AllDevicesSpecifier);
 foreach (var item in list)
@@ -52,36 +45,17 @@ if (ALC.EFX.IsExtensionPresent(device))
 AL.GenBuffer(out int alBuffer);
 
 // Генерация синусоидальных сигналов для левого и правого каналов
-var sine0 = new short[44100]; // Левый канал
+var sine0 = new short[44100 * 5]; // Левый канал
 FillSine(sine0, 2000, 44100);
 
-var sine1 = new short[44100]; // Правый канал
-FillSine(sine1, 500, 44100);
-
-// Создание стерео-буфера
-var data = new short[44100 * 2]; // 2 канала * 44100 семплов
-for (int i = 0, j = 0; i < 44100; i++)
-{
-    data[j++] = sine0[i]; // Левый канал
-    data[j++] = sine1[i]; // Правый канал
-}
-FillRnd(data);
 // Передача данных в OpenAL
-AL.BufferData(alBuffer, ALFormat.Stereo16, ref data[0], data.Length * sizeof(short), 44100);
+AL.BufferData(alBuffer, ALFormat.Mono16, ref sine0[0], sine0.Length * sizeof(short), 44100);
 
 // Настройка источника и воспроизведение
 AL.Listener(ALListenerf.Gain, 0.2f);
 
 AL.GenSource(out int alSource);
 AL.Source(alSource, ALSourcef.Gain, 1f);
-AL.SourceQueueBuffer(alSource, alBuffer);
-AL.SourceQueueBuffer(alSource, alBuffer);
-AL.SourceQueueBuffer(alSource, alBuffer);
-AL.SourceQueueBuffer(alSource, alBuffer);
-AL.SourceQueueBuffer(alSource, alBuffer);
-AL.SourceQueueBuffer(alSource, alBuffer);
-AL.SourceQueueBuffer(alSource, alBuffer);
-AL.SourceQueueBuffer(alSource, alBuffer);
 AL.SourceQueueBuffer(alSource, alBuffer);
 
 // Проверка на наличие EFX и привязка эффекта (если нужно)
@@ -92,29 +66,34 @@ if (ALC.EFX.IsExtensionPresent(device))
 Console.WriteLine("Before Playing: " + AL.GetErrorString(AL.GetError()));
 AL.SourcePlay(alSource);
 
-await Task.Delay(100);
-
+var count = 0;
 while ((ALSourceState)AL.GetSource(alSource, ALGetSourcei.SourceState) == ALSourceState.Playing)
 {
-    if (ALC.DeviceClock.IsExtensionPresent(device))
-    {
-        long[] clockLatency = new long[2];
-        ALC.DeviceClock.GetInteger(device, GetInteger64.DeviceClock, 1, clockLatency);
-        Console.WriteLine("Clock: " + clockLatency[0] + ", Latency: " + clockLatency[1]);
-        CheckAlError(" ");
-    }
-    
-    if (AL.SourceLatency.IsExtensionPresent())
-    {
-        AL.SourceLatency.GetSource(alSource, SourceLatencyVector2d.SecOffsetLatency, out var values);
-        AL.SourceLatency.GetSource(alSource, SourceLatencyVector2i.SampleOffsetLatency, out var values1,
-            out var values2, out var values3);
-        Console.WriteLine("Source latency: " + values);
-        Console.WriteLine($"Source latency 2: {values1}, {values2}; {values3}");
-        CheckAlError(" ");
-    }
-
+    // if (ALC.DeviceClock.IsExtensionPresent(device))
+    // {
+    //     long[] clockLatency = new long[2];
+    //     ALC.DeviceClock.GetInteger(device, GetInteger64.DeviceClock, 1, clockLatency);
+    //     Console.WriteLine("Clock: " + clockLatency[0] + ", Latency: " + clockLatency[1]);
+    //     CheckAlError(" ");
+    // }
+    //
+    // if (AL.SourceLatency.IsExtensionPresent())
+    // {
+    //     AL.SourceLatency.GetSource(alSource, SourceLatencyVector2d.SecOffsetLatency, out var values);
+    //     AL.SourceLatency.GetSource(alSource, SourceLatencyVector2i.SampleOffsetLatency, out var values1,
+    //         out var values2, out var values3);
+    //     Console.WriteLine("Source latency: " + values);
+    //     Console.WriteLine($"Source latency 2: {values1}, {values2}; {values3}");
+    //     CheckAlError(" ");
+    // }
+    var rad = count*Math.PI/180f;
+    var x = Math.Sin(rad) * 10;
+    var y = Math.Cos(rad) * 10;
+    Console.WriteLine($"Playing at: {x}, {y}");
+    var vec = new Vector3((float)x, (float)y, 0);
+    AL.Listener(ALListener3f.Position, ref vec);
     await Task.Delay(50);
+    count++;
 }
 
 AL.GetSource(alSource, ALGetSourcei.BuffersProcessed, out var processed);
